@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build artifacts
+dist/
+build/
+*.spec
+
+# Local runtime data (created at runtime, never commit)
+bindings.json
+broker.log
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store

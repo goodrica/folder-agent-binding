@@ -1,0 +1,10 @@
+# Runtime dependencies: NONE.
+# This project uses only the Python standard library (socket, http.server,
+# json, os, pathlib, subprocess, tkinter). No third-party packages are
+# imported at runtime, which is why pip-audit reports zero known vulnerabilities.
+#
+# Build-time only (not shipped/imported at runtime):
+#   pyinstaller   # for producing the Windows .exe from source
+#   bandit       # security static analysis (CI)
+#   pip-audit    # dependency CVE scan (CI)
+#   pip-licenses # SBOM generation (CI)

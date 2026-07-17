@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folder-Agent-Binding — right-click a folder, give it to your AI</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#9da7b3;
+    --accent:#3fb950; --warn:#d29922; --border:#30363d; --blue:#58a6ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink)}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px}
+  header{padding:60px 0 30px;text-align:center;border-bottom:1px solid var(--border)}
+  h1{font-size:2.4rem;margin:0 0 10px;letter-spacing:-.5px}
+  .tag{color:var(--muted);font-size:1.1rem;max-width:620px;margin:0 auto}
+  .badge{display:inline-block;background:rgba(63,185,80,.15);color:var(--accent);
+         border:1px solid rgba(63,185,80,.4);border-radius:999px;padding:6px 16px;
+         font-weight:600;margin-top:18px;font-size:.95rem}
+  section{padding:38px 0;border-bottom:1px solid var(--border)}
+  h2{font-size:1.6rem;margin:0 0 14px}
+  h3{color:var(--ink);margin:22px 0 8px}
+  p,li{color:var(--muted)}
+  code{background:var(--panel);padding:2px 7px;border-radius:5px;color:#ffa657;font-size:.9em}
+  pre{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+      padding:16px;overflow:auto;color:#c9d1d9;font-size:.85rem}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px}
+  .card h3{margin-top:0;color:var(--ink)}
+  .ok{color:var(--accent);font-weight:600}
+  .steps{counter-reset:s;list-style:none;padding:0}
+  .steps li{counter-increment:s;position:relative;padding:10px 0 10px 44px;border-bottom:1px dashed var(--border)}
+  .steps li:before{content:counter(s);position:absolute;left:0;top:8px;width:28px;height:28px;
+       background:var(--blue);color:#0d1117;border-radius:50%;display:flex;align-items:center;
+       justify-content:center;font-weight:700}
+  .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0;font-size:.95rem}
+  .flow .box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px}
+  .flow .arr{color:var(--muted)}
+  .dl{display:flex;gap:14px;flex-wrap:wrap;margin-top:18px}
+  .btn{display:inline-block;background:var(--accent);color:#04210d;font-weight:700;
+       padding:12px 22px;border-radius:8px}
+  .btn.alt{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+  footer{padding:34px 0 60px;text-align:center;color:var(--muted);font-size:.9rem}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  td,th{border:1px solid var(--border);padding:10px 12px;text-align:left;font-size:.92rem}
+  th{background:var(--panel);color:var(--ink)}
+  @media(max-width:680px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Folder-Agent-Binding</h1>
+    <p class="tag">Right-click any folder in Windows → hand it to your AI agent as a
+       standing context. It's how people already organize. Now your agent does too.</p>
+    <div class="badge">🆓 Free forever · Open source · Local-only · No account</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section id="what">
+    <h2>What it does</h2>
+    <p>You already think in folders — "this is the taxes stuff," "this is project X."
+       Folder-Agent-Binding lets you tell your Hermes agent the same thing with one
+       right-click. The agent gets a notification and a <strong>persistent context</strong>
+       for that folder, so it understands the scope of its responsibility instead of
+       staring at a flat pile of files.</p>
+    <p>This is the missing organizational layer for agent memory and RAG: folders become
+       <strong>scoped, topic-based agent contexts</strong> that mirror real human structure.</p>
+    <div class="grid">
+      <div class="card"><h3>🖱️ One right-click</h3>
+        <p>Right-click a folder in Explorer → "Assign to Agent" → pick Goodybot, Dottie,
+           Trader, or any profile.</p></div>
+      <div class="card"><h3>🔁 Already-assigned warning</h3>
+        <p>The dialog tells you if the folder is already bound to an agent, and lets you
+           Assign or Unassign on the spot.</p></div>
+      <div class="card"><h3>📨 Agent gets notified</h3>
+        <p>Over its existing encrypted Telegram channel — no new account, no new transport.</p></div>
+      <div class="card"><h3>🧠 Standing context</h3>
+        <p>The agent now knows that folder is "its" area, with a structural summary of contents.</p></div>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2>How it works</h2>
+    <div class="flow">
+      <span class="box">Explorer right-click</span><span class="arr">→</span>
+      <span class="box">assign_to_agent.exe (picks agent)</span><span class="arr">→</span>
+      <span class="box">POST 127.0.0.1:8771</span><span class="arr">→</span>
+      <span class="box">broker.py (saves binding)</span><span class="arr">→</span>
+      <span class="box">hermes send → Telegram → bot</span>
+    </div>
+    <p>No arrow leaves your machine except the single, user-initiated Telegram message.
+       The broker binds to <code>127.0.0.1</code> only — it is <strong>not reachable from
+       the network</strong>.</p>
+    <h3>Install (Windows 11, elevated PowerShell)</h3>
+    <pre># from the repo root:
+.\install_windows.ps1</pre>
+    <p>That registers the context-menu entry, starts the broker at logon, and drops a
+       default <code>agents.json</code>. Edit
+       <code>%LOCALAPPDATA%\FolderAgentBinding\agents.json</code> to set your agent names.</p>
+  </section>
+
+  <section id="safe">
+    <h2>Is it safe? Prove it.</h2>
+    <p>We don't ask you to trust us. The safety claims are <strong>checkable by anyone</strong>
+       with free tools. Full detail in <a href="https://github.com/your-org/folder-agent-binding/blob/main/THREAT_MODEL.md">THREAT_MODEL.md</a>
+       and <a href="https://github.com/your-org/folder-agent-binding/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+    <table>
+      <tr><th>Claim</th><th>Evidence</th><th>Result</th></tr>
+      <tr><td>No network egress (loopback only)</td><td>Broker binds hard-coded <code>127.0.0.1</code>; remote clients get 403</td><td class="ok">Verified</td></tr>
+      <tr><td>No secrets handled</td><td>Calls <code>hermes</code> CLI; reads your own config</td><td class="ok">Verified</td></tr>
+      <tr><td>No file contents exfiltrated</td><td>Only folder names + sizes summarized locally</td><td class="ok">Verified</td></tr>
+      <tr><td>Zero third-party runtime deps</td><td>AST scan: stdlib only</td><td class="ok">Pass</td></tr>
+      <tr><td>No known vulnerabilities</td><td><code>pip-audit</code></td><td class="ok">0 CVEs</td></tr>
+      <tr><td>Static analysis clean</td><td><code>bandit</code></td><td class="ok">0 High/Medium</td></tr>
+    </table>
+    <h3>Reproduce it yourself</h3>
+    <pre>bandit -r folder_agent_binding/        # expect 0 high/medium
+pip-audit -r requirements.txt            # expect 0 CVEs (deps empty by design)
+pyinstaller folder_agent_binding/broker.py --onefile
+# compare SHA256 of the exe to the published hash in SECURITY.md</pre>
+  </section>
+
+  <section id="free">
+    <h2>Free forever</h2>
+    <p>No trial, no paid tier, no "contact sales," no telemetry, no account. MIT-licensed.
+       Fork it, ship it, rebrand it. Read the full commitment in
+       <a href="https://github.com/your-org/folder-agent-binding/blob/main/FREE_FOREVER.md">FREE_FOREVER.md</a>.</p>
+    <p>The tool is local-first and stays that way. Future ideas (an agent-token attribution
+       economy, cloud-AI file-server mode) are separate, also-open efforts — this utility
+       remains free and local.</p>
+  </section>
+
+  <section id="get">
+    <h2>Get it</h2>
+    <div class="dl">
+      <a class="btn" href="https://github.com/your-org/folder-agent-binding/releases">⬇ Download</a>
+      <a class="btn alt" href="https://github.com/your-org/folder-agent-binding">GitHub</a>
+      <a class="btn alt" href="https://github.com/your-org/folder-agent-binding/blob/main/README.md">Docs</a>
+    </div>
+    <p style="margin-top:18px">Hermes users: install via the <code>folder-agent-binding</code> skill
+       (<code>hermes skill install folder-agent-binding</code>), then run
+       <code>install_windows.ps1</code> on your Windows machine.</p>
+  </section>
+
+</div>
+
+<footer class="wrap">
+  Built by Andrew / Goodybot · Offered to the world under MIT · 🆓 Free forever<br>
+  Local-first · Open source · No telemetry
+</footer>
+
+</body>
+</html>

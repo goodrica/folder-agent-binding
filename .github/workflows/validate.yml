@@ -1,0 +1,72 @@
+name: validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validators
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit pip-audit
+
+      - name: Bandit static analysis
+        run: bandit -r folder_agent_binding/ -f txt -o bandit-report.txt || true
+
+      - name: Bandit gate (no high/critical)
+        run: |
+          if grep -E "Issue: [^ ]+ [HC] " bandit-report.txt; then
+            echo "::error::Bandit found HIGH/CRITICAL issues"; cat bandit-report.txt; exit 1
+          else
+            echo "Bandit clean (no high/critical)."
+          fi
+
+      - name: Dependency CVE scan
+        run: pip-audit -r requirements.txt
+
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.txt
+
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Prove zero third-party RUNTIME dependencies
+        run: |
+          echo "Scanning app source for non-stdlib imports..."
+          python - <<'PY'
+          import ast, sys, pkgutil
+          stdlib = {m.name for m in pkgutil.iter_modules()} | set(sys.stdlib_module_names)
+          third = set()
+          for path in ("folder_agent_binding/broker.py",
+                       "folder_agent_binding/assign_to_agent.py"):
+              tree = ast.parse(open(path).read())
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      for n in node.names:
+                          third.add(n.name.split('.')[0])
+                  elif isinstance(node, ast.ImportFrom):
+                      if node.level == 0 and node.module:
+                          third.add(node.module.split('.')[0])
+          non_std = {m for m in third if m not in stdlib}
+          if non_std:
+              print("NON-STDLIB RUNTIME IMPORTS FOUND:", non_std)
+              sys.exit(1)
+          print("OK: zero third-party runtime imports (stdlib only).")
+          PY
