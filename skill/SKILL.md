@@ -21,11 +21,14 @@ organize — the missing organizational layer for agent memory / RAG.
 
 ## Install (Windows 11, elevated PowerShell, from repo root)
 ```powershell
+# Prereq: Python 3.10+ on PATH.
 .\install_windows.ps1
 ```
-Registers the context-menu entry, creates a logon scheduled task for the
-broker, drops a default `agents.json`. Edit
-`%LOCALAPPDATA%\FolderAgentBinding\agents.json` to set your agent names.
+Copies the auditable `.py` source into `%LOCALAPPDATA%\FolderAgentBinding\`,
+registers the context-menu entry, and runs the broker via
+`pythonw broker.py serve` (loopback only). **No prebuilt binaries** — the tool
+runs as readable source. Optional `.exe` wrappers can be built from source with
+`python build_windows.py`.
 
 ## Usage
 1. Right-click any folder in Explorer → **"Assign to Agent"**.

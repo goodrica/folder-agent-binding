@@ -29,7 +29,7 @@ folders become scoped, persistent agent contexts instead of a flat file dump.
 
 ```
 Explorer right-click
-   -> assign_to_agent.exe (stdlib GUI, picks agent)
+   -> assign_to_agent.py (stdlib Tk GUI, picks agent)
    -> POST 127.0.0.1:8771  {action:"assign", agent, folder}
    -> broker.py  (writes bindings.json, describes folder structure)
    -> hermes send --agent X  ->  Telegram (encrypted)  ->  Hermes bot
@@ -37,19 +37,24 @@ Explorer right-click
 
 No arrow leaves the machine except the single, user-initiated Telegram message.
 
-## Install (Windows 11)
+## Install (Windows 11) — source-first, no .exe
 
 ```powershell
+# Prereq: Python 3.10+ on PATH (python.org, tick "Add to PATH").
 # Run in an elevated PowerShell (admin) from the repo root:
 .\install_windows.ps1
 ```
 
-This registers the context-menu entry, creates a logon scheduled task for the
-broker, and drops a default `agents.json`. Edit
+This copies the auditable `.py` source into
+`%LOCALAPPDATA%\FolderAgentBinding\`, registers the context-menu entry, creates
+a logon scheduled task that runs `pythonw broker.py serve` (loopback only), and
+drops a default `agents.json`. Edit
 `%LOCALAPPDATA%\FolderAgentBinding\agents.json` to set your agent names.
 
-> The `.exe` files are built from source with PyInstaller (`--onefile`). Build
-> steps and published SHA256 hashes are in `SECURITY.md`.
+> **No prebuilt binaries.** The tool runs as readable Python source — you can
+> inspect every line. If you want standalone `.exe` wrappers for convenience,
+> build them yourself from this source with `python build_windows.py`
+> (optional; produces SHA256 hashes you can verify). See `SECURITY.md`.
 
 ## Usage
 

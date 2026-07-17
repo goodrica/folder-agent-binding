@@ -100,11 +100,16 @@
        The broker binds to <code>127.0.0.1</code> only — it is <strong>not reachable from
        the network</strong>.</p>
     <h3>Install (Windows 11, elevated PowerShell)</h3>
-    <pre># from the repo root:
+    <pre># prereq: Python 3.10+ on PATH (python.org, tick "Add to PATH")
+# from the repo root:
 .\install_windows.ps1</pre>
-    <p>That registers the context-menu entry, starts the broker at logon, and drops a
-       default <code>agents.json</code>. Edit
-       <code>%LOCALAPPDATA%\FolderAgentBinding\agents.json</code> to set your agent names.</p>
+    <p>That copies the <strong>auditable Python source</strong> onto your machine,
+       registers the context-menu entry, and runs the broker via
+       <code>pythonw broker.py serve</code> (loopback only). <strong>No prebuilt
+       binary</strong> — you run readable source, so you can verify every line.</p>
+    <p>Want standalone <code>.exe</code> wrappers for convenience? Build them
+       yourself from this source (the binary is then yours and verifiable):</p>
+    <pre>python build_windows.py      # builds .exe from source, prints SHA256</pre>
   </section>
 
   <section id="safe">
@@ -141,13 +146,13 @@ pyinstaller folder_agent_binding/broker.py --onefile
   <section id="get">
     <h2>Get it</h2>
     <div class="dl">
-      <a class="btn" href="https://github.com/your-org/folder-agent-binding/releases">⬇ Download</a>
-      <a class="btn alt" href="https://github.com/your-org/folder-agent-binding">GitHub</a>
+      <a class="btn" href="https://github.com/your-org/folder-agent-binding">View source on GitHub</a>
+      <a class="btn alt" href="https://github.com/your-org/folder-agent-binding/archive/refs/heads/main.zip">Download ZIP</a>
       <a class="btn alt" href="https://github.com/your-org/folder-agent-binding/blob/main/README.md">Docs</a>
     </div>
-    <p style="margin-top:18px">Hermes users: install via the <code>folder-agent-binding</code> skill
-       (<code>hermes skill install folder-agent-binding</code>), then run
-       <code>install_windows.ps1</code> on your Windows machine.</p>
+    <p style="margin-top:18px">No installer binary, no account, no telemetry. You get the source, run
+       <code>install_windows.ps1</code> on your Windows machine, and the tool runs as readable Python.
+       Hermes users can also install via the <code>folder-agent-binding</code> skill.</p>
   </section>
 
 </div>

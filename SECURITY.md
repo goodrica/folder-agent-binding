@@ -45,23 +45,38 @@ assert not non_std, f"third-party runtime imports: {non_std}"
 print("OK: stdlib only, zero third-party runtime deps")
 PY
 
-# 4. Build the Windows binary & record its hash
-pyinstaller folder_agent_binding/broker.py --onefile --name broker
-pyinstaller folder_agent_binding/assign_to_agent.py --onefile --name assign_to_agent
-sha256sum dist/broker.exe dist/assign_to_agent.exe
-
 # 4. Confirm loopback-only exposure (from a SECOND machine on the LAN)
 nmap -p 8771 <windows-ip>      # expected: filtered/closed
 ```
 
-## Published artifact hashes (regenerate & compare)
+## Source-first: no prebuilt binaries
 
-> Filled in by CI after each release. If the hash you build differs, do not run
-> the binary — rebuild from audited source.
+This tool ships as **readable Python source**. You install by running the `.py`
+files directly (`install_windows.ps1` copies them and runs
+`pythonw broker.py serve`). There is nothing opaque to trust.
+
+If you want standalone `.exe` wrappers for convenience, **build them yourself
+from this source** — that way the binary is yours, produced locally, and
+verifiable against the code you can read:
+
+```bash
+python build_windows.py            # builds broker.exe + assign_to_agent.exe, prints SHA256
+python build_windows.py --update-security   # also writes the hashes into this file
+```
+
+Because everyone builds from the same audited source, the SHA256 you get is the
+proof that *your* binary matches *this* code. We do not publish a binary for you
+to download and wonder about — that would undercut the whole safety story.
+
+## Optional build hashes (self-produced)
+
+> These are filled by *your* `build_windows.py` run, not by us. If you did not
+> run the build, there is no binary and no hash to check — the source is the
+> artifact.
 
 ```
-broker.exe            SHA256: <filled-by-CI>
-assign_to_agent.exe   SHA256: <filled-by-CI>
+broker.exe            SHA256: <filled-by-CI:broker.exe>
+assign_to_agent.exe   SHA256: <filled-by-CI:assign_to_agent.exe>
 ```
 
 ## Responsible disclosure
