@@ -44,7 +44,7 @@ runs as readable source. Optional `.exe` wrappers can be built from source with
 - `THREAT_MODEL.md`, `SECURITY.md`, `README.md`, `LICENSE` (MIT, free forever)
 
 ## Source of truth
-Full repo (issues, CI validation, website): https://github.com/<your-org>/folder-agent-binding
+Full repo (issues, CI validation, website): https://github.com/goodrica/folder-agent-binding
 The tool is FREE FOREVER, MIT-licensed, and open for anyone to build on.
 
 ## Notes / limitations (v1)
