@@ -2,6 +2,7 @@
 
 > **🆓 Free forever. Open source. Local-only. No account, no telemetry, no catch.**
 > MIT-licensed — build on it, ship it, rebrand it. See [FREE_FOREVER.md](FREE_FOREVER.md).
+> 🌐 Site: https://goodrica.github.io/folder-agent-binding/
 
 > Right-click any folder in Windows 11 Explorer → "Assign to Agent" → pick a
 > Hermes agent (Goodybot, Dottie, Trader, or your own). The agent gets notified
