@@ -1,4 +1,4 @@
-<Requires -RunAsAdministrator>
+#Requires -RunAsAdministrator
 <#
   Folder-Agent-Binding — Windows 11 installer (context menu + broker service).
 
