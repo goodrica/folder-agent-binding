@@ -27,15 +27,15 @@
 #>
 
 param(
-    [string]$InstallDir = "$env:LOCALAPPDATA\FolderAgentBinding",
     [int]$BrokerPort     = 8771
 )
 
 $ErrorActionPreference = "Stop"
+$InstallDir = Join-Path $env:LOCALAPPDATA "FolderAgentBinding"
 
 # --- 0. Require Python (source-first means we run .py, not .exe) ---
-$py = (Get-Command python -ErrorAction SilentlyContinue) ??
-      (Get-Command python3 -ErrorAction SilentlyContinue)
+$py = Get-Command python -ErrorAction SilentlyContinue
+if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
 if (-not $py) {
     Write-Error "Python 3.10+ not found. Install it from https://python.org (tick 'Add to PATH'). Then re-run this script."
     exit 1
