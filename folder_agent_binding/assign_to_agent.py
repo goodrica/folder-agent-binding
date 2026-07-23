@@ -23,6 +23,7 @@ Safety notes:
 
 from __future__ import annotations
 
+import argparse
 import http.client
 import json
 import os
@@ -52,23 +53,35 @@ def load_agents() -> list[str]:
         return []
 
 
+def load_config() -> dict:
+    """Load agents.json config, returning full dict (agents + settings)."""
+    try:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def ensure_config() -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not CONFIG_PATH.exists():
-        # Sensible default matching the user's known Hermes profiles.
         default = {
-            "agents": ["Goodybot", "Dottie", "Trader"],
+            "agents": [],
+            "write_agents_md": True,
             "note": "Edit this file to add/remove agent names. These must be "
-                    "valid Hermes agent/chat targets the broker can message.",
+                    "valid Hermes agent/chat targets the broker can message. "
+                    "Set write_agents_md to false to skip creating AGENTS.md.",
         }
         with open(CONFIG_PATH, "w", encoding="utf-8") as fh:
             json.dump(default, fh, indent=2)
 
 
-def send_assign(agent: str, folder: str) -> bool:
+def send_assign(agent: str, folder: str, write_agents_md: bool = True) -> bool:
     payload = json.dumps(
-        {"action": "assign", "agent": agent, "folder": folder}
+        {"action": "assign", "agent": agent, "folder": folder,
+         "write_agents_md": write_agents_md}
     ).encode("utf-8")
+    conn = None
     try:
         conn = http.client.HTTPConnection(BROKER_HOST, BROKER_PORT, timeout=5)
         conn.request("POST", "/", body=payload,
@@ -80,11 +93,13 @@ def send_assign(agent: str, folder: str) -> bool:
         print(f"assign failed: {e}", file=sys.stderr)
         return False
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def query_bindings(folder: str) -> list:
     """Ask the local broker which agents this folder is already bound to."""
+    conn = None
     try:
         conn = http.client.HTTPConnection(BROKER_HOST, BROKER_PORT, timeout=5)
         conn.request("GET", f"/bindings?folder={urllib.parse.quote(folder)}")
@@ -94,13 +109,16 @@ def query_bindings(folder: str) -> list:
     except (OSError, ValueError):
         return []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
-def send_revoke(agent: str, folder: str) -> bool:
+def send_revoke(agent: str, folder: str, remove_agents_md: bool = True) -> bool:
     payload = json.dumps(
-        {"action": "revoke", "agent": agent, "folder": folder}
+        {"action": "revoke", "agent": agent, "folder": folder,
+         "remove_agents_md": remove_agents_md}
     ).encode("utf-8")
+    conn = None
     try:
         conn = http.client.HTTPConnection(BROKER_HOST, BROKER_PORT, timeout=5)
         conn.request("POST", "/", body=payload,
@@ -111,10 +129,12 @@ def send_revoke(agent: str, folder: str) -> bool:
     except (OSError, ValueError):
         return False
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
-def pick_agent(agents: list[str], folder: str) -> str | None:
+def pick_agent(agents: list[str], folder: str,
+               write_agents_md_default: bool = True) -> dict | None:
     if not _HAVE_TK:
         # Non-interactive fallback: print choices, require agent via argv.
         existing = query_bindings(folder)
@@ -130,6 +150,7 @@ def pick_agent(agents: list[str], folder: str) -> str | None:
     def do_assign():
         choice["action"] = "assign"
         choice["agent"] = combo.get()
+        choice["write_agents_md"] = agents_md_var.get()
         root.destroy()
 
     def do_revoke():
@@ -157,7 +178,14 @@ def pick_agent(agents: list[str], folder: str) -> str | None:
         combo.set(assigned[0])  # preselect the already-assigned agent
     elif agents:
         combo.current(0)
-    combo.pack(fill="x", padx=20, pady=(0, 10))
+    combo.pack(fill="x", padx=20, pady=(0, 6))
+
+    agents_md_var = tk.BooleanVar(value=write_agents_md_default)
+    agents_md_cb = tk.Checkbutton(
+        root, text="Write AGENTS.md (persistent context in folder)",
+        variable=agents_md_var,
+    )
+    agents_md_cb.pack(padx=20, pady=(0, 8))
 
     btn_frame = tk.Frame(root)
     btn_frame.pack()
@@ -166,30 +194,52 @@ def pick_agent(agents: list[str], folder: str) -> str | None:
                            state="normal" if assigned else "disabled")
     revoke_btn.pack(side="left", padx=8)
     root.mainloop()
-    return choice.get("agent")
+    return choice if choice else None
 
 
 def main() -> None:
-    folder = sys.argv[1] if len(sys.argv) > 1 else ""
+    ap = argparse.ArgumentParser(description="Folder-Agent-Binding agent picker")
+    ap.add_argument("folder", nargs="?", help="folder path to assign")
+    ap.add_argument("--agent", default="", help="agent name (skips GUI)")
+    ap.add_argument("--revoke", action="store_true", help="revoke instead of assign")
+    args = ap.parse_args()
+
+    folder = args.folder
     if not folder:
-        print("usage: assign_to_agent.py <folder_path>", file=sys.stderr)
+        print("usage: assign_to_agent.py <folder_path> [--agent NAME] [--revoke]",
+              file=sys.stderr)
         sys.exit(2)
     ensure_config()
     agents = load_agents()
     if not agents:
         print("No agents configured. Edit:", CONFIG_PATH, file=sys.stderr)
         sys.exit(1)
-    result = pick_agent(agents, folder)
+
+    # Headless: --agent lets CLI/automation bypass the GUI entirely.
+    config = load_config()
+    write_agents_md_flag = config.get("write_agents_md", True)
+    if args.agent:
+        if args.revoke:
+            ok = send_revoke(args.agent, folder, remove_agents_md=write_agents_md_flag)
+            msg = f"Unassigned from {args.agent} ✓" if ok else "Revoke failed — is the broker running?"
+        else:
+            ok = send_assign(args.agent, folder, write_agents_md=write_agents_md_flag)
+            msg = f"Assigned to {args.agent} ✓" if ok else "Assign failed — is the broker running?"
+        print(msg)
+        sys.exit(0 if ok else 1)
+
+    result = pick_agent(agents, folder, write_agents_md_default=write_agents_md_flag)
     if not result:
         sys.exit(1)
     # result dict carries action + agent (set inside the GUI)
     action = result.get("action", "assign")
     agent = result["agent"]
+    write_md = result.get("write_agents_md", True)
     if action == "revoke":
-        ok = send_revoke(agent, folder)
+        ok = send_revoke(agent, folder, remove_agents_md=write_md)
         msg = f"Unassigned from {agent} ✓" if ok else "Revoke failed — is the broker running?"
     else:
-        ok = send_assign(agent, folder)
+        ok = send_assign(agent, folder, write_agents_md=write_md)
         msg = f"Assigned to {agent} ✓" if ok else "Assign failed — is the broker running?"
     if _HAVE_TK:
         messagebox.showinfo("Folder-Agent-Binding", msg)

@@ -29,9 +29,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -53,6 +55,11 @@ for f in (BINDINGS_FILE, LOG_FILE):
         os.chmod(f, 0o600)
     except OSError:
         pass
+
+# ---------------------------------------------------------------------------
+# File lock — prevents TOCTOU races on bindings.json in threaded server.
+# ---------------------------------------------------------------------------
+_bindings_lock = threading.Lock()
 
 
 def log(msg: str) -> None:
@@ -81,15 +88,26 @@ def load_bindings() -> dict:
 
 
 def save_bindings(data: dict) -> None:
-    with open(BINDINGS_FILE, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2)
+    """Atomic write: write to temp file, then os.replace into place."""
+    content = json.dumps(data, indent=2).encode("utf-8")
+    try:
+        fd, tmp_path = tempfile.mkstemp(dir=APP_DIR, suffix=".tmp")
+        os.write(fd, content)
+        os.close(fd)
+        os.replace(tmp_path, BINDINGS_FILE)
+    except OSError:
+        # Fallback: non-atomic write if tempfile fails (e.g. read-only dir).
+        with open(BINDINGS_FILE, "w", encoding="utf-8") as fh:
+            fh.write(content.decode("utf-8"))
 
 
-def describe_folder(path: str) -> str:
+def describe_folder(path: str, max_chars: int = 2000) -> str:
     """Lightweight, LOCAL-ONLY description of a folder's structure.
 
     Deliberately does NOT read file contents. Only names + sizes + tree depth,
     so the agent gets orientation without us exfiltrating data.
+    Truncates by total character length (for Telegram message limits), not
+    just entry count.
     """
     p = Path(path)
     if not p.exists():
@@ -99,19 +117,86 @@ def describe_folder(path: str) -> str:
         children = sorted(p.iterdir())
     except PermissionError:
         return "(no read permission)"
-    for i, child in enumerate(children[:50]):
+    total = 0
+    for child in children:
         try:
             if child.is_dir():
-                lines.append(f"  [dir]  {child.name}/")
+                line = f"  [dir]  {child.name}/"
             else:
                 size = child.stat().st_size
-                lines.append(f"  [file] {child.name} ({size} bytes)")
+                line = f"  [file] {child.name} ({size} bytes)"
         except OSError:
-            lines.append(f"  [??]   {child.name}")
-        if i >= 49:
-            lines.append("  ... (truncated at 50 entries)")
+            line = f"  [??]   {child.name}"
+        if total + len(line) + 1 > max_chars:
+            lines.append(f"  ... (truncated at {len(lines)} entries, {total} chars)")
             break
+        lines.append(line)
+        total += len(line) + 1  # +1 for newline
     return "\n".join(lines) if lines else "(empty folder)"
+
+
+# ---------------------------------------------------------------------------
+# AGENTS.md — persistent folder context for agents.
+#
+# Writes/removes a marked section inside the folder's AGENTS.md so that any
+# agent (Hermes, Claude Code, Cursor, Windsurf) that reads AGENTS.md on
+# session start picks up the binding automatically. The section is delimited
+# by HTML comments so it can be surgically removed on unassign.
+# ---------------------------------------------------------------------------
+_AGENTS_START = "<!-- FOLDER-AGENT-BINDING START -->"
+_AGENTS_END = "<!-- FOLDER-AGENT-BINDING END -->"
+
+
+def _write_agents_md_section(folder: str, agent_name: str) -> bool:
+    """Write or append an agent-binding section into the folder's AGENTS.md."""
+    agents_file = Path(folder) / "AGENTS.md"
+    section = (
+        f"\n{_AGENTS_START}\n"
+        f"Agent: {agent_name}\n"
+        f"Assigned: {_now()}\n"
+        f"This folder is bound to the above Hermes agent via Folder-Agent-Binding.\n"
+        f"The user assigned this folder for ongoing agent assistance.\n"
+        f"{_AGENTS_END}\n"
+    )
+    try:
+        existing = agents_file.read_text(encoding="utf-8") if agents_file.exists() else ""
+        # Remove any prior binding section (idempotent).
+        existing = _strip_binding_section(existing)
+        # Append new section.
+        agents_file.write_text(existing.rstrip("\n") + section, encoding="utf-8")
+        log(f"AGENTS.md updated: folder={folder} agent={agent_name}")
+        return True
+    except OSError as e:
+        log(f"AGENTS.md write failed: folder={folder} error={e}")
+        return False
+
+
+def remove_agents_md_section(folder: str, agent_name: str) -> bool:
+    """Remove the agent-binding section from the folder's AGENTS.md."""
+    agents_file = Path(folder) / "AGENTS.md"
+    try:
+        if not agents_file.exists():
+            return True
+        existing = agents_file.read_text(encoding="utf-8")
+        cleaned = _strip_binding_section(existing).rstrip("\n") + "\n"
+        if cleaned.strip() == "":
+            agents_file.unlink()
+        else:
+            agents_file.write_text(cleaned, encoding="utf-8")
+        log(f"AGENTS.md section removed: folder={folder} agent={agent_name}")
+        return True
+    except OSError as e:
+        log(f"AGENTS.md remove failed: folder={folder} error={e}")
+        return False
+
+
+def _strip_binding_section(text: str) -> str:
+    """Remove the FOLDER-AGENT-BINDING delimited section from text."""
+    pattern = re.compile(
+        rf"\n?\s*{re.escape(_AGENTS_START)}.*?{re.escape(_AGENTS_END)}",
+        re.DOTALL,
+    )
+    return pattern.sub("", text)
 
 
 # ---------------------------------------------------------------------------
@@ -153,33 +238,46 @@ def notify_agent(agent_name: str, folder: str, description: str) -> dict:
     return {"ok": ok, "detail": detail}
 
 
-def add_binding(agent_name: str, folder: str) -> dict:
-    data = load_bindings()
-    # de-dup
-    for b in data["bindings"]:
-        if b["agent"] == agent_name and b["folder"] == folder:
-            return {"ok": True, "detail": "binding already exists", "binding": b}
-    binding = {
-        "agent": agent_name,
-        "folder": folder,
-        "created": _now(),
-        "description": describe_folder(folder),
-    }
-    data["bindings"].append(binding)
-    save_bindings(data)
+def add_binding(agent_name: str, folder: str, write_agents_md: bool = True) -> dict:
+    with _bindings_lock:
+        data = load_bindings()
+        # de-dup
+        for b in data["bindings"]:
+            if b["agent"] == agent_name and b["folder"] == folder:
+                return {"ok": True, "detail": "binding already exists", "binding": b}
+        binding = {
+            "agent": agent_name,
+            "folder": folder,
+            "created": _now(),
+            "description": describe_folder(folder),
+        }
+        data["bindings"].append(binding)
+        save_bindings(data)
+    # Write persistent AGENTS.md context into the folder (opt-in).
+    agents_md_ok = False
+    if write_agents_md:
+        agents_md_ok = _write_agents_md_section(folder, agent_name)
     note = notify_agent(agent_name, folder, binding["description"])
-    return {"ok": True, "detail": "binding saved; " + note["detail"], "binding": binding}
+    detail = "binding saved"
+    if agents_md_ok:
+        detail += "; AGENTS.md written"
+    detail += "; " + note["detail"]
+    return {"ok": True, "detail": detail, "binding": binding}
 
 
-def remove_binding(agent_name: str, folder: str) -> dict:
-    data = load_bindings()
-    before = len(data["bindings"])
-    data["bindings"] = [
-        b for b in data["bindings"]
-        if not (b["agent"] == agent_name and b["folder"] == folder)
-    ]
-    save_bindings(data)
-    removed = before - len(data["bindings"])
+def remove_binding(agent_name: str, folder: str, remove_agents_md: bool = True) -> dict:
+    with _bindings_lock:
+        data = load_bindings()
+        before = len(data["bindings"])
+        data["bindings"] = [
+            b for b in data["bindings"]
+            if not (b["agent"] == agent_name and b["folder"] == folder)
+        ]
+        save_bindings(data)
+        removed = before - len(data["bindings"])
+    # Remove the AGENTS.md section (clean revert).
+    if remove_agents_md:
+        remove_agents_md_section(folder, agent_name)
     log(f"revoke agent={agent_name} folder={folder} removed={removed}")
     return {"ok": True, "removed": removed}
 
@@ -219,9 +317,15 @@ class Handler(BaseHTTPRequestHandler):
 
         action = req.get("action")
         if action == "assign":
-            out = add_binding(req.get("agent", ""), req.get("folder", ""))
+            out = add_binding(
+                req.get("agent", ""), req.get("folder", ""),
+                write_agents_md=req.get("write_agents_md", True),
+            )
         elif action == "revoke":
-            out = remove_binding(req.get("agent", ""), req.get("folder", ""))
+            out = remove_binding(
+                req.get("agent", ""), req.get("folder", ""),
+                remove_agents_md=req.get("remove_agents_md", True),
+            )
         else:
             self._send(400, {"error": "unknown action"})
             return

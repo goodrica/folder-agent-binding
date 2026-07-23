@@ -28,6 +28,12 @@ story — see `SECURITY.md` for the independent-validation evidence.
   only entry names and byte sizes — never file bodies. No RAG ingestion happens
   in this tool; that is the agent's job, after the user shares a path it can
   reach.
+- **AGENTS.md is user-opted.** Optionally writes a small marked section into
+  the assigned folder's `AGENTS.md` (a standard convention read by Hermes,
+  Claude Code, Cursor, etc.). The section is delimited by HTML comments, can
+  be toggled off via `"write_agents_md": false` in `agents.json`, and is
+  cleanly removed on unassign. No file contents are read — only this metadata
+  section is written.
 - **No 0.0.0.0 / public bind.** The listen address is hard-coded
   `127.0.0.1` in `broker.py::main()`. It cannot be changed via input, config,
   or env var. A remote host hitting the port receives `403`.

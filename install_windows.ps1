@@ -84,8 +84,9 @@ Register-ScheduledTask -TaskName "FolderAgentBindingBroker" -Action $action `
 # --- 4. Default agents.json ---
 $agentCfg = Join-Path $InstallDir "agents.json"
 if (-not (Test-Path $agentCfg)) {
-    $default = @{ agents = @("Goodybot", "Dottie", "Trader");
-                  note  = "Edit to add/remove Hermes agent names." } | ConvertTo-Json
+    $default = @{ agents = @("my-agent");
+                  write_agents_md = $true;
+                  note  = "Edit to add your Hermes agent/chat target names. Set write_agents_md to false to skip creating AGENTS.md." } | ConvertTo-Json
     Set-Content -Path $agentCfg -Value $default -Encoding UTF8
 }
 

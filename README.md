@@ -78,6 +78,15 @@ drops a default `agents.json`. Edit
 | `SECURITY.md` | Third-party validation evidence & reproduction steps |
 | `.github/workflows/validate.yml` | Bandit + pip-audit + SBOM in CI |
 
+## Uninstall
+
+```powershell
+# Run in elevated PowerShell:
+Unregister-ScheduledTask -TaskName "FolderAgentBindingBroker" -Confirm:$false
+Remove-Item "HKLM:\Software\Classes\Directory\shell\FolderAgentBinding" -Recurse -Force
+Remove-Item "$env:LOCALAPPDATA\FolderAgentBinding" -Recurse -Force
+```
+
 ## Roadmap
 
 - [ ] "Unassign" context-menu item (revoke)
